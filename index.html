@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complaint Management System</title>
+    <!-- 
+      This app now uses Google Firebase Firestore for cloud data storage.
+      It requires valid Firebase configuration to be provided.
+      Image files are NOT uploaded; only the filename is saved.
+    -->
+    
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    animation: {
+                        'spin-slow': 'spin 3s linear infinite',
+                        'ping-once': 'ping 1s cubic-bezier(0, 0, 0.2, 1)',
+                    }
+                },
+            },
+        }
+    </script>
+    
+    <style>
+        /* Simple transition for view switching */
+        .view {
+            display: none;
+            animation: fadeIn 0.5s;
+        }
+        .view.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* Custom styles for nav tabs */
+        .nav-tab {
+            @apply py-3 px-4 font-medium text-center text-gray-500 border-b-2 border-transparent cursor-pointer hover:text-gray-700 hover:border-gray-300 flex items-center gap-2;
+        }
+        .nav-tab.active {
+            @apply text-indigo-600 border-indigo-500;
+        }
+        
+        /* Loading spinner */
+        .loader {
+            @apply w-4 h-4 border-2 border-transparent border-t-white rounded-full animate-spin;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans">
+
+    <div class="container mx-auto max-w-4xl p-4 md:p-8">
+        <header class="bg-white shadow-lg rounded-lg p-6 mb-6 overflow-hidden">
+            <h1 class="text-4xl font-bold text-center bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                Complaint Management System
+            </h1>
+            <p class="text-center text-gray-600 mt-2">Submit a new complaint or track an existing one.</p>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <div class="mb-6">
+            <div class="flex border-b border-gray-200 bg-white rounded-t-lg px-2">
+                <button id="navSubmit" class="nav-tab active" data-view="submitView">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0L8 7.236l-4.243 4.243a2 2 0 11-2.828-2.828l7-7a2 2 0 012.828 0l3 3z" /><path d="M4 14v3a2 2 0 002 2h10a2 2 0 002-2v-3l-4-4H8L4 14z" />
+                    </svg>
+                    New Complaint
+                </button>
+                <button id="navSearch" class="nav-tab" data-view="searchView">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                    </svg>
+                    Search & Resolve
+                </button>
+            </div>
+        </div>
+
+        <!-- === VIEW 1: SUBMIT NEW COMPLAINT === -->
+        <div id="submitView" class="view active bg-white p-6 md:p-8 rounded-b-lg rounded-tr-lg shadow-xl">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-6">Submit a New Complaint</h2>
+            <form id="complaintForm" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700">Full Name</label>
+                        <input type="text" id="name" name="name" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label for="phone" class="block text-sm font-medium text-gray-700">Phone Number</label>
+                        <input type="tel" id="phone" name="phone" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-700">Email Address</label>
+                        <input type="email" id="email" name="email" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label for="priority" class="block text-sm font-medium text-gray-700">Priority</label>
+                        <select id="priority" name="priority" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white">
+                            <option value="Low">Low</option>
+                            <option value="Medium" selected>Medium</option>
+                            <option value="High">High</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div>
+                    <label for="location" class="block text-sm font-medium text-gray-700">Location</label>
+                    <input type="text" id="location" name="location" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                </div>
+
+                <div>
+                    <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
+                    <textarea id="description" name="description" rows="4" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></textarea>
+                </div>
+
+                <div>
+                    <label for="image" class="block text-sm font-medium text-gray-700">Upload Image (Optional)</label>
+                    <input type="file" id="image" name="image" accept="image/*" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                    <p class="text-xs text-gray-500 mt-1">Note: Only the file name is saved, not the actual image.</p>
+                </div>
+
+                <div class="text-right">
+                    <button id="submitButton" type="submit" class="inline-flex items-center justify-center py-2 px-6 border border-transparent shadow-md text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-150 ease-in-out">
+                        <span id="submitButtonText">Submit Complaint</span>
+                        <span id="submitButtonLoader" class="hidden"><div class="loader"></div></span>
+                    </button>
+                </div>
+            </form>
+            <!-- Response area for submission -->
+            <div id="submissionResponse" class="mt-6"></div>
+        </div>
+
+        <!-- === VIEW 2: SEARCH & RESOLVE === -->
+        <div id="searchView" class="view bg-white p-6 md:p-8 rounded-b-lg rounded-tr-lg shadow-xl">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-6">Search & Resolve Complaint</h2>
+            
+            <!-- Search Bar -->
+            <div class="flex mb-6">
+                <input type="text" id="searchInput" placeholder="Enter Complaint Number..." class="flex-grow rounded-l-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <button id="searchButton" class="py-2 px-5 bg-indigo-600 text-white font-semibold rounded-r-md shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-150 ease-in-out">
+                    <span id="searchButtonText">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                        </svg>
+                    </span>
+                    <span id="searchButtonLoader" class="hidden"><div class="loader"></div></span>
+                </button>
+            </div>
+
+            <!-- Results & Resolution Area -->
+            <div id="searchResults" class="space-y-6">
+                <!-- Content will be injected by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            signInWithCustomToken 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            getDoc, 
+            addDoc, 
+            updateDoc, 
+            collection,
+            setLogLevel
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Global Firebase & App Variables ---
+        let app, db, auth, userId;
+        
+        // --- This is the path where your data will be stored in Firestore ---
+        // It's public, so any user (like an admin) can search for complaints.
+        let complaintsCollectionPath;
+
+        // --- DOM Elements ---
+        const views = {
+            submitView: document.getElementById('submitView'),
+            searchView: document.getElementById('searchView'),
+        };
+        const navTabs = {
+            navSubmit: document.getElementById('navSubmit'),
+            navSearch: document.getElementById('navSearch'),
+        };
+        const complaintForm = document.getElementById('complaintForm');
+        const submissionResponse = document.getElementById('submissionResponse');
+        const submitButton = document.getElementById('submitButton');
+        const submitButtonText = document.getElementById('submitButtonText');
+        const submitButtonLoader = document.getElementById('submitButtonLoader');
+        
+        const searchInput = document.getElementById('searchInput');
+        const searchButton = document.getElementById('searchButton');
+        const searchButtonText = document.getElementById('searchButtonText');
+        const searchButtonLoader = document.getElementById('searchButtonLoader');
+        const searchResults = document.getElementById('searchResults');
+
+        // --- Helper: Show/Hide Loader ---
+        const showLoader = (button, text, loader) => {
+            button.disabled = true;
+            text.classList.add('hidden');
+            loader.classList.remove('hidden');
+        };
+        const hideLoader = (button, text, loader) => {
+            button.disabled = false;
+            text.classList.remove('hidden');
+            loader.classList.add('hidden');
+        };
+
+        // --- Helper: Show Alert Message ---
+        const showAlert = (element, type, title, message) => {
+            const icons = {
+                success: `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`,
+                error: `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`,
+                info: `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`
+            };
+            const colors = {
+                success: { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-200', icon: 'text-green-500' },
+                error: { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-200', icon: 'text-red-500' },
+                info: { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200', icon: 'text-blue-500' }
+            };
+            const c = colors[type];
+            
+            element.innerHTML = `
+                <div class="${c.bg} ${c.border} ${c.text} p-4 rounded-lg border flex">
+                    <div class="mr-3 ${c.icon}">${icons[type]}</div>
+                    <div>
+                        <h4 class="font-bold">${title}</h4>
+                        <div class="mt-1">${message}</div>
+                    </div>
+                </div>
+            `;
+        };
+
+        // --- App Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                // 1. Get Firebase Config from global variables
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const firebaseConfig = JSON.parse(__firebase_config);
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+                // 2. Initialize Firebase
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                // Set Firestore log level for debugging
+                setLogLevel('Debug');
+
+                // 3. Define collection path
+                complaintsCollectionPath = `/artifacts/${appId}/public/data/complaints`;
+
+                // 4. Authenticate User
+                authenticateUser(initialAuthToken);
+                
+                // 5. Setup Event Listeners
+                setupEventListeners();
+                
+                // 6. Set initial view
+                setActiveView('submitView');
+
+            } catch (error) {
+                console.error("Firebase initialization failed:", error);
+                showAlert(submissionResponse, 'error', 'Initialization Error', 'Failed to connect to the database. Please check console.');
+                showAlert(searchResults, 'error', 'Initialization Error', 'Failed to connect to the database. Please check console.');
+            }
+        });
+        
+        async function authenticateUser(token) {
+            try {
+                if (token) {
+                    await signInWithCustomToken(auth, token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                userId = auth.currentUser.uid;
+                console.log("Firebase Authentication successful. User ID:", userId);
+            } catch (error) {
+                console.error("Firebase Authentication failed:", error);
+                showAlert(submissionResponse, 'error', 'Authentication Error', 'Could not authenticate user.');
+            }
+        }
+
+        // --- View Switching Logic ---
+        const setActiveView = (viewId) => {
+            Object.values(views).forEach(view => view.classList.remove('active'));
+            Object.values(navTabs).forEach(tab => tab.classList.remove('active'));
+            
+            views[viewId].classList.add('active');
+            navTabs[`nav${viewId.charAt(0).toUpperCase() + viewId.slice(1, -4)}`].classList.add('active');
+        };
+
+        // --- Setup All Event Listeners ---
+        function setupEventListeners() {
+            navTabs.navSubmit.addEventListener('click', () => setActiveView('submitView'));
+            navTabs.navSearch.addEventListener('click', () => setActiveView('searchView'));
+
+            // --- Complaint Submission Logic ---
+            complaintForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (!db || !userId) {
+                    showAlert(submissionResponse, 'error', 'Error', 'Database not ready. Please wait and try again.');
+                    return;
+                }
+                
+                showLoader(submitButton, submitButtonText, submitButtonLoader);
+                
+                const newComplaint = {
+                    name: document.getElementById('name').value,
+                    phone: document.getElementById('phone').value,
+                    email: document.getElementById('email').value,
+                    priority: document.getElementById('priority').value,
+                    location: document.getElementById('location').value,
+                    description: document.getElementById('description').value,
+                    imageName: document.getElementById('image').files[0]?.name || 'N/A',
+                    submittedAt: new Date().toISOString(),
+                    status: 'Pending',
+                    resolution: null,
+                    submitterId: userId // Track who submitted it
+                };
+
+                try {
+                    // Save to Firestore
+                    const docRef = await addDoc(collection(db, complaintsCollectionPath), newComplaint);
+                    
+                    // Show success message with the *actual* Firestore Document ID
+                    showAlert(submissionResponse, 'success', 'Success!', 
+                        `Your complaint has been submitted. Your Complaint Number is:
+                         <div class="text-lg font-mono bg-green-200 p-2 rounded mt-2 inline-block">${docRef.id}</div>
+                         <p class="mt-2">Please save this number to track your complaint.</p>`
+                    );
+                    complaintForm.reset();
+                } catch (error) {
+                    console.error("Error adding document: ", error);
+                    showAlert(submissionResponse, 'error', 'Submission Failed', `There was an error saving your complaint: ${error.message}`);
+                } finally {
+                    hideLoader(submitButton, submitButtonText, submitButtonLoader);
+                }
+            });
+
+            // --- Search Logic ---
+            searchButton.addEventListener('click', async () => {
+                const searchId = searchInput.value.trim();
+                if (!searchId) {
+                    showAlert(searchResults, 'info', 'Search', 'Please enter a complaint number.');
+                    return;
+                }
+                
+                if (!db) {
+                    showAlert(searchResults, 'error', 'Error', 'Database not ready. Please wait and try again.');
+                    return;
+                }
+
+                showLoader(searchButton, searchButtonText, searchButtonLoader);
+                
+                try {
+                    const docRef = doc(db, complaintsCollectionPath, searchId);
+                    const docSnap = await getDoc(docRef);
+
+                    if (docSnap.exists()) {
+                        // Complaint found, render details
+                        renderComplaintDetails({ id: docSnap.id, ...docSnap.data() });
+                    } else {
+                        // Complaint not found
+                        showAlert(searchResults, 'error', 'Not Found', `No complaint found with the ID: <strong>${searchId}</strong>`);
+                    }
+                } catch (error) {
+                    console.error("Error getting document:", error);
+                    showAlert(searchResults, 'error', 'Search Error', `An error occurred while searching: ${error.message}`);
+                } finally {
+                    hideLoader(searchButton, searchButtonText, searchButtonLoader);
+                }
+            });
+
+            // --- Resolution Logic (using Event Delegation) ---
+            searchResults.addEventListener('submit', async (e) => {
+                if (e.target.id === 'resolutionForm') {
+                    e.preventDefault();
+                    
+                    const complaintId = e.target.dataset.id;
+                    const resolutionData = {
+                        notes: document.getElementById('resolutionNotes').value,
+                        imageName: document.getElementById('resolutionImage').files[0]?.name || 'N/A',
+                        resolvedAt: document.getElementById('resolutionDate').value
+                    };
+                    
+                    const resolveButton = e.target.querySelector('button[type="submit"]');
+                    const resolveButtonText = e.target.querySelector('#resolveButtonText');
+                    const resolveButtonLoader = e.target.querySelector('#resolveButtonLoader');
+                    showLoader(resolveButton, resolveButtonText, resolveButtonLoader);
+
+                    try {
+                        const docRef = doc(db, complaintsCollectionPath, complaintId);
+                        await updateDoc(docRef, {
+                            status: 'Resolved',
+                            resolution: resolutionData
+                        });
+
+                        // Show success right in the form
+                        const resolutionResponse = document.getElementById('resolutionResponse');
+                        showAlert(resolutionResponse, 'success', 'Updated!', `Complaint ${complaintId} has been marked as resolved.`);
+                        
+                        // Re-render the details
+                        const updatedDocSnap = await getDoc(docRef);
+                        renderComplaintDetails({ id: updatedDocSnap.id, ...updatedDocSnap.data() });
+
+                    } catch (error) {
+                        console.error("Error updating document:", error);
+                        const resolutionResponse = document.getElementById('resolutionResponse');
+                        showAlert(resolutionResponse, 'error', 'Update Failed', `An error occurred: ${error.message}`);
+                    }
+                }
+            });
+        }
+
+        // --- Render Complaint Details & Resolution Form ---
+        const renderComplaintDetails = (complaint) => {
+            const detailsHTML = `
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <h3 class="text-xl font-semibold mb-4">Details for Complaint: <span class="font-mono text-indigo-700">${complaint.id}</span></h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                        <p><strong>Name:</strong> ${complaint.name}</p>
+                        <p><strong>Phone:</strong> ${complaint.phone}</p>
+                        <p><strong>Email:</strong> ${complaint.email}</p>
+                        <p><strong>Location:</strong> ${complaint.location}</p>
+                        <p><strong>Priority:</strong> ${complaint.priority}</p>
+                        <p><strong>Status:</strong> <span class="font-bold ${complaint.status === 'Pending' ? 'text-orange-600' : 'text-green-600'}">${complaint.status}</span></p>
+                        <p class="md-col-span-2"><strong>Submitted:</strong> ${new Date(complaint.submittedAt).toLocaleString()}</p>
+                        <p class="md-col-span-2"><strong>Description:</strong> <span class="block mt-1 p-2 bg-white rounded border">${complaint.description}</span></p>
+                        <p class="md-col-span-2"><strong>Image File:</strong> ${complaint.imageName}</p>
+                    </div>
+                </div>
+            `;
+
+            let resolutionHTML = '';
+            if (complaint.status === 'Resolved') {
+                resolutionHTML = `
+                    <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+                        <h3 class="text-xl font-semibold mb-4 text-green-800">Complaint Resolved</h3>
+                        <div class="space-y-3 text-sm">
+                            <p><strong>Resolved On:</strong> ${new Date(complaint.resolution.resolvedAt).toLocaleString()}</p>
+                            <p><strong>Resolution Image File:</strong> ${complaint.resolution.imageName}</p>
+                            <p><strong>Notes:</strong></p>
+                            <p class="bg-white p-3 rounded border">${complaint.resolution.notes}</p>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Get current datetime for default value
+                const now = new Date().toISOString().slice(0, 16);
+                // Show resolution form
+                resolutionHTML = `
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <h3 class="text-xl font-semibold mb-4 text-blue-800">Resolve Complaint</h3>
+                        <form id="resolutionForm" data-id="${complaint.id}">
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="resolutionNotes" class="block text-sm font-medium text-gray-700">Resolution Notes</label>
+                                    <textarea id="resolutionNotes" rows="4" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></textarea>
+                                </div>
+                                <div>
+                                    <label for="resolutionImage" class="block text-sm font-medium text-gray-700">Resolution Image (Optional)</label>
+                                    <input type="file" id="resolutionImage" accept="image/*" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                                </div>
+                                <div>
+                                    <label for="resolutionDate" class="block text-sm font-medium text-gray-700">Date & Time of Resolution</label>
+                                    <input type="datetime-local" id="resolutionDate" value="${now}" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                </div>
+                                <div id="resolutionResponse" class="mt-4"></div>
+                                <div class="text-right">
+                                    <button type="submit" class="inline-flex items-center justify-center py-2 px-6 border border-transparent shadow-md text-base font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-150 ease-in-out">
+                                        <span id="resolveButtonText">Mark as Resolved</span>
+                                        <span id="resolveButtonLoader" class="hidden"><div class="loader"></div></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                `;
+            }
+            
+            searchResults.innerHTML = detailsHTML + resolutionHTML;
+        };
+
+    </script>
+
+</body>
+</html>
